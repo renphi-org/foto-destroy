@@ -17,6 +17,7 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGE_PATH = os.path.join(BASE_DIR, "images", "source.png")
 ORIGINAL_PATH = os.path.join(BASE_DIR, "images", "original.png")
+DEFAULT_PATH = os.path.join(BASE_DIR, "images", "default.png")  # committed seed image
 SNAPSHOTS_DIR = os.path.join(BASE_DIR, "images", "snapshots")
 STATE_PATH = os.path.join(BASE_DIR, "state.json")
 MAX_VIEWS = 1024
@@ -70,9 +71,13 @@ def save_state(count):
 
 
 def load_image():
-    """Load source.png from disk or generate a placeholder. Returns float32 array."""
+    """Load source.png from disk, falling back to default.png or placeholder. Returns float32 array."""
     if os.path.exists(IMAGE_PATH):
         img = Image.open(IMAGE_PATH).convert("RGB")
+    elif os.path.exists(DEFAULT_PATH):
+        img = Image.open(DEFAULT_PATH).convert("RGB")
+        os.makedirs(os.path.dirname(IMAGE_PATH), exist_ok=True)
+        img.save(IMAGE_PATH, format="PNG")
     else:
         img = generate_placeholder()
         os.makedirs(os.path.dirname(IMAGE_PATH), exist_ok=True)
@@ -99,6 +104,8 @@ def ensure_original():
     if not os.path.exists(ORIGINAL_PATH):
         if os.path.exists(IMAGE_PATH):
             shutil.copy2(IMAGE_PATH, ORIGINAL_PATH)
+        elif os.path.exists(DEFAULT_PATH):
+            shutil.copy2(DEFAULT_PATH, ORIGINAL_PATH)
         else:
             img = generate_placeholder()
             os.makedirs(os.path.dirname(ORIGINAL_PATH), exist_ok=True)

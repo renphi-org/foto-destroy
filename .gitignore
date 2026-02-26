@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
 state.json
-images/
+images/source.png
+images/original.png
+images/snapshots/
 .claude/
