@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Entropy</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -15,9 +18,17 @@
             flex-direction: column;
             font-family: 'Courier New', monospace;
         }
+        .container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 90vw;
+            max-width: 1000px;
+        }
         img {
-            max-width: 90vw;
-            max-height: 80vh;
+            max-width: 100%;
+            max-height: 75vh;
             border: 1px solid #111;
         }
         .counter {
@@ -26,10 +37,153 @@
             font-size: 0.75rem;
             letter-spacing: 0.15em;
         }
+        .reset-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #222;
+            color: #444;
+            font-family: 'Courier New', monospace;
+            font-size: 0.65rem;
+            padding: 0.3rem 0.6rem;
+            cursor: pointer;
+            letter-spacing: 0.1em;
+            transition: all 0.2s;
+        }
+        .reset-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #888;
+            border-color: #444;
+        }
+
+        /* Slider */
+        .slider-container {
+            width: 100%;
+            margin-top: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .slider-label {
+            color: #333;
+            font-size: 0.65rem;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
+            min-height: 1em;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 2px;
+            background: #1a1a1a;
+            outline: none;
+            border-radius: 1px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #333;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #666;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #333;
+            cursor: pointer;
+            border: none;
+        }
+        input[type="range"]:disabled {
+            opacity: 0.3;
+        }
     </style>
 </head>
 <body>
-    <img src="/image" alt="Degrading image" />
-    <div class="counter">view {{ view_count }} / 1024</div>
+    <div class="container">
+        <form id="reset-form" method="POST" action="/reset" style="display:none;"></form>
+        <button class="reset-btn" onclick="document.getElementById('reset-form').submit()">reset</button>
+
+        <img id="main-image" src="/image?t={{ view_count }}" alt="Degrading image" />
+
+        <div class="counter" id="counter">view {{ view_count }} / {{ max_views }}</div>
+
+        <div class="slider-container">
+            <div class="slider-label" id="slider-label">timeline</div>
+            <input type="range" id="timeline" min="0" max="0" step="10" value="0" disabled />
+        </div>
+    </div>
+
+    <script>
+        const img = document.getElementById('main-image');
+        const slider = document.getElementById('timeline');
+        const sliderLabel = document.getElementById('slider-label');
+        const counter = document.getElementById('counter');
+        const currentView = {{ view_count }};
+        const maxViews = {{ max_views }};
+        let snapshots = [];
+        let isPreviewingSnapshot = false;
+
+        // Fetch available snapshots and configure slider
+        async function loadSnapshots() {
+            try {
+                const res = await fetch('/snapshots');
+                snapshots = await res.json();
+                if (snapshots.length > 0) {
+                    slider.min = snapshots[0];
+                    slider.max = snapshots[snapshots.length - 1];
+                    slider.value = snapshots[snapshots.length - 1];
+                    slider.disabled = false;
+                    sliderLabel.textContent = 'timeline';
+                } else {
+                    slider.disabled = true;
+                    sliderLabel.textContent = 'no snapshots yet';
+                }
+            } catch (e) {
+                slider.disabled = true;
+            }
+        }
+
+        // Find the closest snapshot to the slider value
+        function closestSnapshot(val) {
+            let closest = snapshots[0];
+            let minDist = Math.abs(val - closest);
+            for (const s of snapshots) {
+                const dist = Math.abs(val - s);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = s;
+                }
+            }
+            return closest;
+        }
+
+        slider.addEventListener('input', function() {
+            const snapVal = closestSnapshot(parseInt(this.value));
+            img.src = '/snapshot/' + snapVal + '?t=' + Date.now();
+            sliderLabel.textContent = 'snapshot @ view ' + snapVal;
+            isPreviewingSnapshot = true;
+        });
+
+        // Double-click slider to return to live view
+        slider.addEventListener('dblclick', function() {
+            isPreviewingSnapshot = false;
+            img.src = '/image?t=' + Date.now();
+            sliderLabel.textContent = 'timeline';
+            if (snapshots.length > 0) {
+                this.value = snapshots[snapshots.length - 1];
+            }
+        });
+
+        loadSnapshots();
+    </script>
 </body>
 </html>
