@@ -2,6 +2,8 @@
 
 A web app that slowly destroys an image with every single page view. After 1024 views, the image is completely black.
 
+**[Live Demo](http://kog48gc4kkck4cskocc8gc04.91.99.28.32.sslip.io/)**
+
 ## How it works
 
 Every time someone opens the page, the displayed image is degraded one step further. The destruction is permanent and cumulative — each view applies darkening, glitch effects, and digital corruption that stack on top of previous damage.
@@ -44,6 +46,8 @@ Open http://localhost:5001 and start refreshing.
 ## Deploy
 
 The app includes a `Procfile` for Nixpacks/Coolify deployment. The seed image (`images/default.png`) is bundled in the repo. Runtime state (`source.png`, `original.png`, `snapshots/`, `state.json`) is gitignored.
+
+Add `numpy` to your requirements if not already present (`pip install -r requirements.txt`).
 
 ## State persistence
 
