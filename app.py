@@ -138,6 +138,41 @@ def pil_to_arr(img):
     return np.array(img.convert("RGB"), dtype=np.float32)
 
 
+def jpeg_corrupt(arr, quality):
+    """Run image through JPEG compression to create blocky artifacts."""
+    img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=quality)
+    buf.seek(0)
+    img = Image.open(buf).convert("RGB")
+    return np.array(img, dtype=np.float32)
+
+
+def rgb_channel_shift(arr, max_shift):
+    """Shift RGB channels independently for chromatic aberration."""
+    h, w, _ = arr.shape
+    result = arr.copy()
+    for ch in range(3):
+        dx = random.randint(-max_shift, max_shift)
+        dy = random.randint(-max_shift, max_shift)
+        shifted = np.roll(np.roll(arr[:, :, ch], dx, axis=1), dy, axis=0)
+        result[:, :, ch] = shifted
+    return result
+
+
+def block_corrupt(arr, num_blocks):
+    """Randomly copy rectangular blocks to wrong positions (datamosh effect)."""
+    h, w, _ = arr.shape
+    result = arr.copy()
+    for _ in range(num_blocks):
+        bw = random.randint(20, max(21, w // 4))
+        bh = random.randint(5, max(6, h // 8))
+        sx, sy = random.randint(0, w - bw), random.randint(0, h - bh)
+        dx, dy = random.randint(0, w - bw), random.randint(0, h - bh)
+        result[dy:dy + bh, dx:dx + bw] = arr[sy:sy + bh, sx:sx + bw]
+    return result
+
+
 def degrade(arr, count):
     """Apply one step of degradation to a float32 numpy array. Returns new float32 array."""
     if count >= MAX_VIEWS:
@@ -149,23 +184,44 @@ def degrade(arr, count):
     alpha = 0.001 + 0.007 * (progress ** 2)
     arr = arr * (1.0 - alpha)
 
-    # 2. Add pixel noise every 8 views (destructive — randomly zero out pixels)
+    # 2. RGB channel shift every 6 views (chromatic aberration)
+    if count % 6 == 0 and progress > 0.02:
+        max_shift = max(1, int(progress * 12))
+        pre_mean = arr.mean()
+        arr = rgb_channel_shift(arr, max_shift)
+        post_mean = arr.mean()
+        if post_mean > pre_mean and pre_mean > 0:
+            arr = arr * (pre_mean / post_mean)
+
+    # 3. Dead pixels + color distortion every 8 views
     if count % 8 == 0 and progress > 0.05:
-        kill_prob = progress * 0.003
+        kill_prob = progress * 0.004
         mask = np.random.random(arr.shape[:2]) > kill_prob
         arr *= mask[:, :, np.newaxis]
 
-        if progress > 0.15:
-            shift = int(progress * 3)
-            if shift > 0:
-                channel = random.randint(0, 2)
-                arr[:, shift:, channel] = arr[:, :-shift, channel]
+    # 4. Block corruption (datamosh) every ~25 views
+    if count % 25 == 0 and count > 0 and progress < 0.9:
+        num_blocks = max(1, int(progress * 8))
+        pre_mean = arr.mean()
+        arr = block_corrupt(arr, num_blocks)
+        post_mean = arr.mean()
+        if post_mean > pre_mean and pre_mean > 0:
+            arr = arr * (pre_mean / post_mean)
 
-    # 3. Apply Pillow filter every ~120 views (structural degradation)
-    if count % 120 == 0 and count > 0:
+    # 5. JPEG corruption every ~35 views (blocky artifacts)
+    if count % 35 == 0 and count > 0:
+        quality = max(1, int(50 - progress * 45))
+        pre_mean = arr.mean()
+        arr = jpeg_corrupt(arr, quality)
+        post_mean = arr.mean()
+        if post_mean > pre_mean and pre_mean > 0:
+            arr = arr * (pre_mean / post_mean)
+
+    # 6. Apply Pillow filter every ~80 views
+    if count % 80 == 0 and count > 0:
         pre_mean = arr.mean()
         img = arr_to_pil(arr)
-        if progress < 0.6:
+        if progress < 0.5:
             img = img.filter(random.choice(GENTLE_FILTERS))
         else:
             img = img.filter(random.choice(HARSH_FILTERS))
@@ -174,11 +230,11 @@ def degrade(arr, count):
         if post_mean > pre_mean and pre_mean > 0:
             arr = arr * (pre_mean / post_mean)
 
-    # 4. Apply glitch effect every ~150 views
-    if count % 150 == 0 and count > 0 and progress < 0.85:
+    # 7. Glitch-this effect every ~40 views (frequent and wild)
+    if count % 40 == 0 and count > 0 and progress < 0.85:
         pre_mean = arr.mean()
-        intensity = min(10.0, 0.5 + progress * 8.0)
-        use_scan_lines = progress > 0.5
+        intensity = min(10.0, 1.0 + progress * 9.0)
+        use_scan_lines = progress > 0.3
         try:
             img = arr_to_pil(arr)
             glitched = glitcher.glitch_image(
