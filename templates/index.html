@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entropy</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            flex-direction: column;
+            font-family: 'Courier New', monospace;
+        }
+        img {
+            max-width: 90vw;
+            max-height: 80vh;
+            border: 1px solid #111;
+        }
+        .counter {
+            color: #333;
+            margin-top: 1.5rem;
+            font-size: 0.75rem;
+            letter-spacing: 0.15em;
+        }
+    </style>
+</head>
+<body>
+    <img src="/image" alt="Degrading image" />
+    <div class="counter">view {{ view_count }} / 1024</div>
+</body>
+</html>
